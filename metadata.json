@@ -1,0 +1,8 @@
+{
+  "name": "InovaStudio",
+  "description": "Peças decorativas, colecionáveis e utilidades premium impressas em 3D de alta precisão. Traga sua ideia para o mundo real!",
+  "requestFramePermissions": [],
+  "majorCapabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
+}
