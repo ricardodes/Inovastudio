@@ -187,6 +187,21 @@ function App() {
       if (ogDesc) {
         ogDesc.setAttribute("content", storeDesc);
       }
+
+      // Dynamically update favicon link to the current logo with cache-busting
+      const currentLogo = settings.logoUrl || "/images/logo-inova-transparent.png";
+      const faviconLinks = document.querySelectorAll('link[rel*="icon"]');
+      if (faviconLinks.length > 0) {
+        faviconLinks.forEach(link => {
+          link.setAttribute("href", `${currentLogo}?v=${new Date().getTime()}`);
+        });
+      } else {
+        const link = document.createElement('link');
+        link.rel = 'icon';
+        link.type = 'image/png';
+        link.href = `${currentLogo}?v=${new Date().getTime()}`;
+        document.getElementsByTagName('head')[0].appendChild(link);
+      }
     }
   }, [settings]);
 
