@@ -189,7 +189,7 @@ function App() {
       }
 
       // Dynamically update favicon link to the current logo with cache-busting
-      const currentLogo = settings.logoUrl || "/images/logo-inova-transparent.png";
+      const currentLogo = settings.logoUrl || "/favicon.ico";
       const faviconLinks = document.querySelectorAll('link[rel*="icon"]');
       if (faviconLinks.length > 0) {
         faviconLinks.forEach(link => {
