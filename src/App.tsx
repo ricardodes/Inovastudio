@@ -189,11 +189,14 @@ function App() {
       }
 
       // Dynamically update favicon link to the current logo with cache-busting
-      const currentLogo = settings.logoUrl || "/favicon.ico";
+      const currentLogo = settings.logoUrl || "/favicon.png";
       const faviconLinks = document.querySelectorAll('link[rel*="icon"]');
       if (faviconLinks.length > 0) {
         faviconLinks.forEach(link => {
           link.setAttribute("href", `${currentLogo}?v=${new Date().getTime()}`);
+          if (currentLogo.endsWith(".png") || currentLogo.includes("logo-inova-transparent")) {
+            link.setAttribute("type", "image/png");
+          }
         });
       } else {
         const link = document.createElement('link');
