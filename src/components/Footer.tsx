@@ -91,7 +91,7 @@ export function Footer({ settings }: FooterProps) {
           >
             {!logoFailed ? (
               <img 
-                src={settings?.logoUrl || `${BASE.endsWith("/") ? BASE.slice(0, -1) : BASE}/images/logo-inova-transparent.svg`} 
+                src={settings?.logoUrl || `${BASE.endsWith("/") ? BASE.slice(0, -1) : BASE}/images/logo-inova-transparent.png`} 
                 alt={storeName} 
                 onError={() => setLogoFailed(true)}
                 style={{ 

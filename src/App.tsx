@@ -96,7 +96,17 @@ const DAMASK_WALLPAPER = `data:image/svg+xml,${encodeURIComponent(`
 
 function App() {
   const [isAdminMode, setIsAdminMode] = useState(false);
-  const [settings, setSettings] = useState<AppSettings>(DEFAULT_SETTINGS);
+  const [settings, setSettings] = useState<AppSettings>(() => {
+    try {
+      const saved = localStorage.getItem("app_settings");
+      if (saved) {
+        return JSON.parse(saved);
+      }
+    } catch (e) {
+      console.error("Error reading cached settings:", e);
+    }
+    return DEFAULT_SETTINGS;
+  });
 
   const fetchSettings = async () => {
     try {
@@ -105,6 +115,9 @@ function App() {
       const data = await res.json();
       if (data.success && data.settings) {
         setSettings(data.settings);
+        try {
+          localStorage.setItem("app_settings", JSON.stringify(data.settings));
+        } catch (e) {}
         return;
       }
     } catch (err) {
@@ -114,6 +127,9 @@ function App() {
         const clientSettings = await getSettingsClient();
         if (clientSettings) {
           setSettings(clientSettings);
+          try {
+            localStorage.setItem("app_settings", JSON.stringify(clientSettings));
+          } catch (e) {}
         }
       } catch (clientErr) {
         console.error("Client Firestore fallback failed:", clientErr);

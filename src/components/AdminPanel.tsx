@@ -198,7 +198,12 @@ export function AdminPanel({ onClose }: AdminPanelProps) {
       }
 
       if (loadedProducts) setProducts(loadedProducts);
-      if (loadedSettings) setSettings(loadedSettings);
+      if (loadedSettings) {
+        setSettings(loadedSettings);
+        try {
+          localStorage.setItem("app_settings", JSON.stringify(loadedSettings));
+        } catch (e) {}
+      }
       if (loadedMessages) setMessages(loadedMessages);
 
     } catch (err) {
@@ -304,7 +309,12 @@ export function AdminPanel({ onClose }: AdminPanelProps) {
         showToast("Acesso autorizado!");
 
         if (authenticatedProducts) setProducts(authenticatedProducts);
-        if (authenticatedSettings) setSettings(authenticatedSettings);
+        if (authenticatedSettings) {
+          setSettings(authenticatedSettings);
+          try {
+            localStorage.setItem("app_settings", JSON.stringify(authenticatedSettings));
+          } catch (e) {}
+        }
         if (authenticatedMessages) setMessages(authenticatedMessages);
       }
 
@@ -561,6 +571,9 @@ export function AdminPanel({ onClose }: AdminPanelProps) {
         if (res.ok) {
           const data = await res.json();
           if (data.success) {
+            try {
+              localStorage.setItem("app_settings", JSON.stringify(settings));
+            } catch (e) {}
             showToast("Configurações atualizadas no banco!");
             fetchData();
             return;
@@ -571,6 +584,9 @@ export function AdminPanel({ onClose }: AdminPanelProps) {
         console.warn("API failed, using client direct Firestore fallback:", err);
         const client = await import("@/lib/firebase-client");
         await client.saveSettingsClient(settings);
+        try {
+          localStorage.setItem("app_settings", JSON.stringify(settings));
+        } catch (e) {}
         showToast("Configurações atualizadas!");
         fetchData();
       }
