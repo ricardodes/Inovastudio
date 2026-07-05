@@ -9,29 +9,11 @@ import { ContactBanner } from "@/components/ContactBanner";
 import { Footer } from "@/components/Footer";
 import { GlowingWaves } from "@/components/GlowingWaves";
 import { MessageCircle } from "lucide-react";
+import { AppSettings } from "@/types";
 
 const AdminPanel = lazy(() =>
   import("@/components/AdminPanel").then((module) => ({ default: module.AdminPanel }))
 );
-
-interface AppSettings {
-  storeName: string;
-  storeDescription: string;
-  shopeeStoreUrl: string;
-  whatsAppPhone: string;
-  whatsAppMessage: string;
-  whatsAppEnabled: boolean;
-  socialInstagram?: string;
-  socialFacebook?: string;
-  socialYoutube?: string;
-  socialTelegram?: string;
-  wholesaleWhatsApp?: string;
-  wholesaleTelegram?: string;
-  logoUrl?: string;
-  adminPassword?: string;
-  isAdminOnline?: boolean;
-  contactEmail?: string;
-}
 
 const DEFAULT_SETTINGS: AppSettings = {
   storeName: "InovaStudio",
@@ -119,12 +101,23 @@ function App() {
   const fetchSettings = async () => {
     try {
       const res = await fetch("/api/settings");
+      if (!res.ok) throw new Error("API settings response not ok");
       const data = await res.json();
       if (data.success && data.settings) {
         setSettings(data.settings);
+        return;
       }
     } catch (err) {
-      console.error("Error loading settings:", err);
+      console.warn("API settings fetch failed, falling back to direct Firestore:", err);
+      try {
+        const { getSettingsClient } = await import("@/lib/firebase-client");
+        const clientSettings = await getSettingsClient();
+        if (clientSettings) {
+          setSettings(clientSettings);
+        }
+      } catch (clientErr) {
+        console.error("Client Firestore fallback failed:", clientErr);
+      }
     }
   };
 

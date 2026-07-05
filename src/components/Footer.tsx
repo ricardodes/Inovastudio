@@ -85,17 +85,17 @@ export function Footer({ settings }: FooterProps) {
               display: "flex",
               alignItems: "center",
               gap: "0.6rem",
-              marginTop: "-3.2rem",
-              marginBottom: "-1.5rem",
+              marginTop: "-1.2rem",
+              marginBottom: "0.5rem",
             }}
           >
             {!logoFailed ? (
               <img 
-                src={settings?.logoUrl || `${BASE.endsWith("/") ? BASE.slice(0, -1) : BASE}/images/logo-inova-transparent.png`} 
+                src={settings?.logoUrl || `${BASE.endsWith("/") ? BASE.slice(0, -1) : BASE}/images/logo-inova-transparent.svg`} 
                 alt={storeName} 
                 onError={() => setLogoFailed(true)}
                 style={{ 
-                  height: 200, 
+                  height: 110, 
                   width: "auto", 
                   objectFit: "contain",
                   filter: "drop-shadow(0 4px 12px rgba(0,0,0,0.4))",

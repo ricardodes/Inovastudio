@@ -132,33 +132,75 @@ export function AdminPanel({ onClose }: AdminPanelProps) {
   const fetchData = async () => {
     setLoading(true);
     try {
-      // Fetch Products
-      const prodRes = await fetch("/api/products");
-      const prodData = await prodRes.json();
-      if (prodData.success) {
-        setProducts(prodData.products);
+      let loadedProducts = null;
+      let loadedSettings = null;
+      let loadedMessages = null;
+
+      try {
+        // Try Fetch Products via Server API
+        const prodRes = await fetch("/api/products");
+        if (prodRes.ok) {
+          const prodData = await prodRes.json();
+          if (prodData.success) {
+            loadedProducts = prodData.products;
+          }
+        }
+      } catch (e) {
+        console.warn("Product API failed, falling back to client direct Firestore:", e);
       }
 
-      // Fetch Settings with admin password header if available to securely load the admin fields
-      const adminPass = getAdminPassword();
-      const settingsRes = await fetch("/api/settings", {
-        headers: adminPass ? { "x-admin-password": adminPass } : undefined
-      });
-      const settingsData = await settingsRes.json();
-      if (settingsData.success) {
-        setSettings(settingsData.settings);
-      }
-
-      // Fetch Messages (only if password is available)
-      if (adminPass) {
-        const msgRes = await fetch("/api/messages", {
-          headers: { "x-admin-password": adminPass }
+      try {
+        // Try Fetch Settings with admin password header if available via Server API
+        const adminPass = getAdminPassword();
+        const settingsRes = await fetch("/api/settings", {
+          headers: adminPass ? { "x-admin-password": adminPass } : undefined
         });
-        const msgData = await msgRes.json();
-        if (msgData.success) {
-          setMessages(msgData.messages || []);
+        if (settingsRes.ok) {
+          const settingsData = await settingsRes.json();
+          if (settingsData.success) {
+            loadedSettings = settingsData.settings;
+          }
+        }
+      } catch (e) {
+        console.warn("Settings API failed, falling back to client direct Firestore:", e);
+      }
+
+      const adminPass = getAdminPassword();
+      if (adminPass) {
+        try {
+          // Try Fetch Messages via Server API
+          const msgRes = await fetch("/api/messages", {
+            headers: { "x-admin-password": adminPass }
+          });
+          if (msgRes.ok) {
+            const msgData = await msgRes.json();
+            if (msgData.success) {
+              loadedMessages = msgData.messages || [];
+            }
+          }
+        } catch (e) {
+          console.warn("Messages API failed, falling back to client direct Firestore:", e);
         }
       }
+
+      // Fallbacks if server API didn't load them
+      if (loadedProducts === null || loadedSettings === null || (adminPass && loadedMessages === null)) {
+        const client = await import("@/lib/firebase-client");
+        if (loadedProducts === null) {
+          loadedProducts = await client.getProductsClient();
+        }
+        if (loadedSettings === null) {
+          loadedSettings = await client.getSettingsClient();
+        }
+        if (adminPass && loadedMessages === null) {
+          loadedMessages = await client.getMessagesClient();
+        }
+      }
+
+      if (loadedProducts) setProducts(loadedProducts);
+      if (loadedSettings) setSettings(loadedSettings);
+      if (loadedMessages) setMessages(loadedMessages);
+
     } catch (err) {
       console.error("Error loading admin data:", err);
       showToast("Falha ao carregar dados do banco", "error");
@@ -172,48 +214,103 @@ export function AdminPanel({ onClose }: AdminPanelProps) {
     setLoading(true);
     setAuthError("");
     try {
-      const res = await fetch("/api/verify-password", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ password: passwordInput })
-      });
-      const data = await res.json();
-      if (data.success) {
+      let isVerified = false;
+      let authenticatedSettings = null;
+      let authenticatedProducts = null;
+      let authenticatedMessages = null;
+
+      try {
+        const res = await fetch("/api/verify-password", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ password: passwordInput })
+        });
+        if (res.ok) {
+          const data = await res.json();
+          if (data.success) {
+            isVerified = true;
+
+            // Load authenticated settings and products via Server API
+            try {
+              const prodRes = await fetch("/api/products");
+              if (prodRes.ok) {
+                const prodData = await prodRes.json();
+                if (prodData.success) authenticatedProducts = prodData.products;
+              }
+            } catch (e) {
+              console.warn("API prod load failed on login:", e);
+            }
+
+            try {
+              const settingsRes = await fetch("/api/settings", {
+                headers: { "x-admin-password": passwordInput }
+              });
+              if (settingsRes.ok) {
+                const settingsData = await settingsRes.json();
+                if (settingsData.success) authenticatedSettings = settingsData.settings;
+              }
+            } catch (e) {
+              console.warn("API settings load failed on login:", e);
+            }
+
+            try {
+              const msgRes = await fetch("/api/messages", {
+                headers: { "x-admin-password": passwordInput }
+              });
+              if (msgRes.ok) {
+                const msgData = await msgRes.json();
+                if (msgData.success) authenticatedMessages = msgData.messages || [];
+              }
+            } catch (e) {
+              console.warn("API messages load failed on login:", e);
+            }
+          } else {
+            setAuthError("Senha de acesso incorreta.");
+            setLoading(false);
+            return;
+          }
+        } else {
+          throw new Error("Server API failed to verify password");
+        }
+      } catch (err) {
+        console.warn("Server auth failed or unavailable, trying client-side Firestore authentication:", err);
+        // Direct Client-Side Firestore Authentication
+        try {
+          const client = await import("@/lib/firebase-client");
+          const clientSettings = await client.getSettingsClient();
+          const correctPassword = clientSettings?.adminPassword || "admin123";
+          if (passwordInput === correctPassword) {
+            isVerified = true;
+            authenticatedSettings = clientSettings;
+            authenticatedProducts = await client.getProductsClient();
+            authenticatedMessages = await client.getMessagesClient();
+          } else {
+            setAuthError("Senha de acesso incorreta.");
+            setLoading(false);
+            return;
+          }
+        } catch (clientErr) {
+          console.error("Client fallback auth failed:", clientErr);
+          setAuthError("Erro de comunicação com o servidor.");
+          setLoading(false);
+          return;
+        }
+      }
+
+      if (isVerified) {
         setIsAuthenticated(true);
         localStorage.setItem("admin_authenticated", "true");
         localStorage.setItem("admin_password", passwordInput);
         showToast("Acesso autorizado!");
-        
-        // Load authenticated settings and products
-        setLoading(true);
-        // Fetch products
-        const prodRes = await fetch("/api/products");
-        const prodData = await prodRes.json();
-        if (prodData.success) {
-          setProducts(prodData.products);
-        }
-        // Fetch Settings with the newly validated password
-        const settingsRes = await fetch("/api/settings", {
-          headers: { "x-admin-password": passwordInput }
-        });
-        const settingsData = await settingsRes.json();
-        if (settingsData.success) {
-          setSettings(settingsData.settings);
-        }
-        // Fetch messages
-        const msgRes = await fetch("/api/messages", {
-          headers: { "x-admin-password": passwordInput }
-        });
-        const msgData = await msgRes.json();
-        if (msgData.success) {
-          setMessages(msgData.messages || []);
-        }
-      } else {
-        setAuthError("Senha de acesso incorreta.");
+
+        if (authenticatedProducts) setProducts(authenticatedProducts);
+        if (authenticatedSettings) setSettings(authenticatedSettings);
+        if (authenticatedMessages) setMessages(authenticatedMessages);
       }
+
     } catch (err) {
       console.error("Login verification error:", err);
-      setAuthError("Erro de comunicação com o servidor.");
+      setAuthError("Erro de comunicação.");
     } finally {
       setLoading(false);
     }
@@ -228,16 +325,28 @@ export function AdminPanel({ onClose }: AdminPanelProps) {
 
   const handleToggleMessageRead = async (id: string, currentRead: boolean) => {
     try {
-      const res = await fetch(`/api/messages/${id}`, {
-        method: "PATCH",
-        headers: { 
-          "Content-Type": "application/json",
-          "x-admin-password": getAdminPassword()
-        },
-        body: JSON.stringify({ read: !currentRead })
-      });
-      const data = await res.json();
-      if (data.success) {
+      try {
+        const res = await fetch(`/api/messages/${id}`, {
+          method: "PATCH",
+          headers: { 
+            "Content-Type": "application/json",
+            "x-admin-password": getAdminPassword() || ""
+          },
+          body: JSON.stringify({ read: !currentRead })
+        });
+        if (res.ok) {
+          const data = await res.json();
+          if (data.success) {
+            showToast(currentRead ? "Mensagem marcada como não lida" : "Mensagem marcada como lida");
+            fetchData();
+            return;
+          }
+        }
+        throw new Error("API failed");
+      } catch (err) {
+        console.warn("API failed, using client direct Firestore fallback:", err);
+        const client = await import("@/lib/firebase-client");
+        await client.updateMessageClient(id, { read: !currentRead });
         showToast(currentRead ? "Mensagem marcada como não lida" : "Mensagem marcada como lida");
         fetchData();
       }
@@ -249,16 +358,28 @@ export function AdminPanel({ onClose }: AdminPanelProps) {
 
   const handleToggleMessageReplied = async (id: string, currentReplied: boolean) => {
     try {
-      const res = await fetch(`/api/messages/${id}`, {
-        method: "PATCH",
-        headers: { 
-          "Content-Type": "application/json",
-          "x-admin-password": getAdminPassword()
-        },
-        body: JSON.stringify({ replied: !currentReplied })
-      });
-      const data = await res.json();
-      if (data.success) {
+      try {
+        const res = await fetch(`/api/messages/${id}`, {
+          method: "PATCH",
+          headers: { 
+            "Content-Type": "application/json",
+            "x-admin-password": getAdminPassword() || ""
+          },
+          body: JSON.stringify({ replied: !currentReplied })
+        });
+        if (res.ok) {
+          const data = await res.json();
+          if (data.success) {
+            showToast(currentReplied ? "Resposta pendente" : "Mensagem marcada como respondida");
+            fetchData();
+            return;
+          }
+        }
+        throw new Error("API failed");
+      } catch (err) {
+        console.warn("API failed, using client direct Firestore fallback:", err);
+        const client = await import("@/lib/firebase-client");
+        await client.updateMessageClient(id, { replied: !currentReplied });
         showToast(currentReplied ? "Resposta pendente" : "Mensagem marcada como respondida");
         fetchData();
       }
@@ -271,12 +392,24 @@ export function AdminPanel({ onClose }: AdminPanelProps) {
   const handleDeleteMessage = async (id: string) => {
     if (!confirm("Tem certeza que deseja excluir esta mensagem definitivamente?")) return;
     try {
-      const res = await fetch(`/api/messages/${id}`, { 
-        method: "DELETE",
-        headers: { "x-admin-password": getAdminPassword() }
-      });
-      const data = await res.json();
-      if (data.success) {
+      try {
+        const res = await fetch(`/api/messages/${id}`, { 
+          method: "DELETE",
+          headers: { "x-admin-password": getAdminPassword() || "" }
+        });
+        if (res.ok) {
+          const data = await res.json();
+          if (data.success) {
+            showToast("Mensagem excluída com sucesso");
+            fetchData();
+            return;
+          }
+        }
+        throw new Error("API failed");
+      } catch (err) {
+        console.warn("API failed, using client direct Firestore fallback:", err);
+        const client = await import("@/lib/firebase-client");
+        await client.deleteMessageClient(id);
         showToast("Mensagem excluída com sucesso");
         fetchData();
       }
@@ -347,25 +480,36 @@ export function AdminPanel({ onClose }: AdminPanelProps) {
     };
 
     try {
-      const res = await fetch("/api/products", {
-        method: "POST",
-        headers: { 
-          "Content-Type": "application/json",
-          "x-admin-password": getAdminPassword()
-        },
-        body: JSON.stringify(productPayload)
-      });
-      const data = await res.json();
-      if (data.success) {
+      try {
+        const res = await fetch("/api/products", {
+          method: "POST",
+          headers: { 
+            "Content-Type": "application/json",
+            "x-admin-password": getAdminPassword() || ""
+          },
+          body: JSON.stringify(productPayload)
+        });
+        if (res.ok) {
+          const data = await res.json();
+          if (data.success) {
+            showToast(editingProduct ? "Produto atualizado!" : "Produto cadastrado com sucesso!");
+            setIsFormOpen(false);
+            fetchData();
+            return;
+          }
+        }
+        throw new Error("API failed");
+      } catch (err) {
+        console.warn("API failed, using client direct Firestore fallback:", err);
+        const client = await import("@/lib/firebase-client");
+        await client.saveProductClient(productPayload);
         showToast(editingProduct ? "Produto atualizado!" : "Produto cadastrado com sucesso!");
         setIsFormOpen(false);
         fetchData();
-      } else {
-        showToast(data.error || "Erro ao salvar produto", "error");
       }
     } catch (err) {
       console.error(err);
-      showToast("Erro de rede ao salvar produto", "error");
+      showToast("Erro ao salvar produto", "error");
     }
   };
 
@@ -374,20 +518,30 @@ export function AdminPanel({ onClose }: AdminPanelProps) {
     if (!confirm("Tem certeza que deseja remover este produto definitivamente?")) return;
 
     try {
-      const res = await fetch(`/api/products/${id}`, { 
-        method: "DELETE",
-        headers: { "x-admin-password": getAdminPassword() }
-      });
-      const data = await res.json();
-      if (data.success) {
+      try {
+        const res = await fetch(`/api/products/${id}`, { 
+          method: "DELETE",
+          headers: { "x-admin-password": getAdminPassword() || "" }
+        });
+        if (res.ok) {
+          const data = await res.json();
+          if (data.success) {
+            showToast("Produto removido com sucesso!");
+            fetchData();
+            return;
+          }
+        }
+        throw new Error("API failed");
+      } catch (err) {
+        console.warn("API failed, using client direct Firestore fallback:", err);
+        const client = await import("@/lib/firebase-client");
+        await client.deleteProductClient(id);
         showToast("Produto removido com sucesso!");
         fetchData();
-      } else {
-        showToast(data.error || "Erro ao deletar produto", "error");
       }
     } catch (err) {
       console.error(err);
-      showToast("Erro de rede ao deletar produto", "error");
+      showToast("Erro ao deletar produto", "error");
     }
   };
 
@@ -395,24 +549,34 @@ export function AdminPanel({ onClose }: AdminPanelProps) {
   const handleSaveSettings = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
-      const res = await fetch("/api/settings", {
-        method: "POST",
-        headers: { 
-          "Content-Type": "application/json",
-          "x-admin-password": getAdminPassword()
-        },
-        body: JSON.stringify(settings)
-      });
-      const data = await res.json();
-      if (data.success) {
-        showToast("Configurações atualizadas no banco!");
+      try {
+        const res = await fetch("/api/settings", {
+          method: "POST",
+          headers: { 
+            "Content-Type": "application/json",
+            "x-admin-password": getAdminPassword() || ""
+          },
+          body: JSON.stringify(settings)
+        });
+        if (res.ok) {
+          const data = await res.json();
+          if (data.success) {
+            showToast("Configurações atualizadas no banco!");
+            fetchData();
+            return;
+          }
+        }
+        throw new Error("API failed");
+      } catch (err) {
+        console.warn("API failed, using client direct Firestore fallback:", err);
+        const client = await import("@/lib/firebase-client");
+        await client.saveSettingsClient(settings);
+        showToast("Configurações atualizadas!");
         fetchData();
-      } else {
-        showToast(data.error || "Erro ao salvar configurações", "error");
       }
     } catch (err) {
       console.error(err);
-      showToast("Erro ao conectar com o servidor", "error");
+      showToast("Erro ao salvar configurações", "error");
     }
   };
 

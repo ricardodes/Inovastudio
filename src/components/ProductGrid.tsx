@@ -329,31 +329,73 @@ export function ProductGrid({ settings }: ProductGridProps) {
   // Fetch products and categories dynamically from Firestore API
   useEffect(() => {
     // Fetch Categories to build dynamic filters
-    fetch("/api/categories")
-      .then((res) => res.json())
-      .then((data) => {
-        if (data.success && data.categories && data.categories.length > 0) {
-          const dynamicFilters = [
-            { id: "all", label: "Todos os produtos" },
-            ...data.categories.map((cat: any) => ({
-              id: cat.id,
-              label: cat.label
-            }))
-          ];
-          setFilters(dynamicFilters);
+    const loadCategories = async () => {
+      try {
+        const res = await fetch("/api/categories");
+        if (res.ok) {
+          const data = await res.ok ? await res.json() : null;
+          if (data && data.success && data.categories && data.categories.length > 0) {
+            const dynamicFilters = [
+              { id: "all", label: "Todos os produtos" },
+              ...data.categories.map((cat: any) => ({
+                id: cat.id,
+                label: cat.label
+              }))
+            ];
+            setFilters(dynamicFilters);
+            return;
+          }
         }
-      })
-      .catch((err) => console.error("Error loading categories for filters:", err));
+        throw new Error("Categories API response not ok");
+      } catch (err) {
+        console.warn("Categories API failed, falling back to direct Firestore:", err);
+        try {
+          const { getCategoriesClient } = await import("@/lib/firebase-client");
+          const clientCategories = await getCategoriesClient();
+          if (clientCategories && clientCategories.length > 0) {
+            const dynamicFilters = [
+              { id: "all", label: "Todos os produtos" },
+              ...clientCategories.map((cat: any) => ({
+                id: cat.id,
+                label: cat.label
+              }))
+            ];
+            setFilters(dynamicFilters);
+          }
+        } catch (clientErr) {
+          console.error("Client fallback for categories failed:", clientErr);
+        }
+      }
+    };
 
     // Fetch Products
-    fetch("/api/products")
-      .then((res) => res.json())
-      .then((data) => {
-        if (data.success && data.products && data.products.length > 0) {
-          setProducts(data.products);
+    const loadProducts = async () => {
+      try {
+        const res = await fetch("/api/products");
+        if (res.ok) {
+          const data = await res.json();
+          if (data.success && data.products && data.products.length > 0) {
+            setProducts(data.products);
+            return;
+          }
         }
-      })
-      .catch((err) => console.error("Error loading products:", err));
+        throw new Error("Products API response not ok");
+      } catch (err) {
+        console.warn("Products API failed, falling back to direct Firestore:", err);
+        try {
+          const { getProductsClient } = await import("@/lib/firebase-client");
+          const clientProducts = await getProductsClient();
+          if (clientProducts && clientProducts.length > 0) {
+            setProducts(clientProducts);
+          }
+        } catch (clientErr) {
+          console.error("Client fallback for products failed:", clientErr);
+        }
+      }
+    };
+
+    loadCategories();
+    loadProducts();
   }, []);
 
   // Helper to identify best sellers (mais vendidos)

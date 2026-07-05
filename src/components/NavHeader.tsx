@@ -96,7 +96,7 @@ export function NavHeader({ settings }: NavHeaderProps) {
         <a href="#" style={{ textDecoration: "none", display: "flex", alignItems: "center", flexShrink: 0 }}>
           {!logoFailed ? (
             <img
-              src={settings?.logoUrl || `${BASE.endsWith("/") ? BASE.slice(0, -1) : BASE}/images/logo-inova-transparent.png`}
+              src={settings?.logoUrl || `${BASE.endsWith("/") ? BASE.slice(0, -1) : BASE}/images/logo-inova-transparent.svg`}
               alt={storeName}
               onError={() => setLogoFailed(true)}
               style={{

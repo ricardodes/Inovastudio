@@ -31,21 +31,45 @@ export function ContactBanner({ settings }: ContactBannerProps) {
 
     setSubmitting(true);
     try {
-      const res = await fetch("/api/messages", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          name: formData.name,
-          email: formData.email,
-          phone: formData.phone,
-          messageText: formData.messageText,
-          read: false,
-          replied: false,
-          createdAt: new Date().toISOString()
-        })
-      });
-      const data = await res.json();
-      if (data.success) {
+      const payload = {
+        name: formData.name,
+        email: formData.email,
+        phone: formData.phone,
+        messageText: formData.messageText,
+        read: false,
+        replied: false,
+        createdAt: new Date().toISOString()
+      };
+
+      let successStatus = false;
+
+      try {
+        const res = await fetch("/api/messages", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(payload)
+        });
+        if (res.ok) {
+          const data = await res.json();
+          if (data.success) {
+            successStatus = true;
+          }
+        }
+      } catch (apiErr) {
+        console.warn("Contact API failed, falling back to direct Firestore:", apiErr);
+      }
+
+      if (!successStatus) {
+        try {
+          const { addMessageClient } = await import("@/lib/firebase-client");
+          await addMessageClient(payload);
+          successStatus = true;
+        } catch (clientErr) {
+          console.error("Direct Firestore contact submission failed:", clientErr);
+        }
+      }
+
+      if (successStatus) {
         setSuccess(true);
         const submittedName = formData.name;
         const submittedMsg = formData.messageText;
@@ -62,7 +86,7 @@ export function ContactBanner({ settings }: ContactBannerProps) {
           }, 1200);
         }
       } else {
-        alert("Erro ao enviar: " + (data.error || "Erro interno"));
+        alert("Erro ao enviar contato. Por favor, tente novamente.");
       }
     } catch (err) {
       console.error(err);
