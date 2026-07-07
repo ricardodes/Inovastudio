@@ -193,22 +193,24 @@ function App() {
         ogDesc.setAttribute("content", storeDesc);
       }
 
-      // Dynamically update favicon link to the current logo with cache-busting
-      const currentLogo = settings.logoUrl || "/favicon.png";
-      const faviconLinks = document.querySelectorAll('link[rel*="icon"]');
-      if (faviconLinks.length > 0) {
-        faviconLinks.forEach(link => {
-          link.setAttribute("href", `${currentLogo}?v=${new Date().getTime()}`);
-          if (currentLogo.endsWith(".png") || currentLogo.includes("logo-inova-transparent")) {
-            link.setAttribute("type", "image/png");
-          }
-        });
-      } else {
-        const link = document.createElement('link');
-        link.rel = 'icon';
-        link.type = 'image/png';
-        link.href = `${currentLogo}?v=${new Date().getTime()}`;
-        document.getElementsByTagName('head')[0].appendChild(link);
+      // Dynamically update favicon link to the current logo with cache-busting only if custom logo is configured
+      const customLogo = settings.logoUrl;
+      if (customLogo) {
+        const faviconLinks = document.querySelectorAll('link[rel*="icon"]');
+        if (faviconLinks.length > 0) {
+          faviconLinks.forEach(link => {
+            link.setAttribute("href", `${customLogo}?v=${new Date().getTime()}`);
+            if (customLogo.endsWith(".png") || customLogo.includes("logo-inova-transparent")) {
+              link.setAttribute("type", "image/png");
+            }
+          });
+        } else {
+          const link = document.createElement('link');
+          link.rel = 'icon';
+          link.type = 'image/png';
+          link.href = `${customLogo}?v=${new Date().getTime()}`;
+          document.getElementsByTagName('head')[0].appendChild(link);
+        }
       }
     }
   }, [settings]);
