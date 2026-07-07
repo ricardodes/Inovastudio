@@ -20,11 +20,18 @@ export const db = firebaseConfig.firestoreDatabaseId
 export async function getSettingsClient(): Promise<AppSettings | null> {
   try {
     const snapshot = await getDocs(collection(db, "settings"));
-    const generalDoc = snapshot.docs.find(d => d.id === "general");
-    if (!generalDoc) {
-      return null;
+    const inovaDoc = snapshot.docs.find(d => d.id === "general_inova");
+    if (inovaDoc) {
+      return inovaDoc.data() as AppSettings;
     }
-    return generalDoc.data() as AppSettings;
+    const generalDoc = snapshot.docs.find(d => d.id === "general");
+    if (generalDoc) {
+      const data = generalDoc.data() as AppSettings;
+      if (data.storeName && !data.storeName.toLowerCase().includes("bambuzau")) {
+        return data;
+      }
+    }
+    return null;
   } catch (err) {
     console.error("Error fetching settings directly from Firestore client:", err);
     return null;
@@ -33,7 +40,7 @@ export async function getSettingsClient(): Promise<AppSettings | null> {
 
 // Save settings directly to Firestore (client fallback)
 export async function saveSettingsClient(settings: AppSettings): Promise<void> {
-  const docRef = doc(db, "settings", "general");
+  const docRef = doc(db, "settings", "general_inova");
   await setDoc(docRef, settings);
 }
 

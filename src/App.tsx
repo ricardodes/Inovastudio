@@ -100,7 +100,12 @@ function App() {
     try {
       const saved = localStorage.getItem("app_settings");
       if (saved) {
-        return JSON.parse(saved);
+        const parsed = JSON.parse(saved);
+        if (parsed && parsed.storeName && parsed.storeName.toLowerCase().includes("bambuzau")) {
+          localStorage.removeItem("app_settings");
+          return DEFAULT_SETTINGS;
+        }
+        return parsed;
       }
     } catch (e) {
       console.error("Error reading cached settings:", e);

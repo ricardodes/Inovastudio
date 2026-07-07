@@ -695,11 +695,18 @@ export async function getSettings(): Promise<AppSettings> {
   }
   try {
     const snapshot = await getDocs(collection(db, "settings"));
-    const generalDoc = snapshot.docs.find(d => d.id === "general");
-    if (!generalDoc) {
-      return DEFAULT_SETTINGS;
+    const inovaDoc = snapshot.docs.find(d => d.id === "general_inova");
+    if (inovaDoc) {
+      return { ...DEFAULT_SETTINGS, ...inovaDoc.data() } as AppSettings;
     }
-    return { ...DEFAULT_SETTINGS, ...generalDoc.data() } as AppSettings;
+    const generalDoc = snapshot.docs.find(d => d.id === "general");
+    if (generalDoc) {
+      const data = generalDoc.data() as AppSettings;
+      if (data.storeName && !data.storeName.toLowerCase().includes("bambuzau")) {
+        return { ...DEFAULT_SETTINGS, ...data } as AppSettings;
+      }
+    }
+    return DEFAULT_SETTINGS;
   } catch (e: any) {
     if (e?.code === "permission-denied" || String(e).includes("permission")) {
       handleFirestoreError(e, OperationType.GET, "settings");
@@ -714,11 +721,11 @@ export async function saveSettings(settings: AppSettings): Promise<void> {
     throw new Error("Firebase não configurado. Não é possível salvar configurações no modo de fallback local.");
   }
   try {
-    const docRef = doc(db, "settings", "general");
+    const docRef = doc(db, "settings", "general_inova");
     await setDoc(docRef, settings);
   } catch (e: any) {
     if (e?.code === "permission-denied" || String(e).includes("permission")) {
-      handleFirestoreError(e, OperationType.WRITE, "settings/general");
+      handleFirestoreError(e, OperationType.WRITE, "settings/general_inova");
     }
     console.error("Error saving settings to Firestore:", e);
     throw e;
@@ -736,10 +743,19 @@ export async function seedDatabaseIfEmpty() {
     // Seed settings
     const settingsCol = collection(db, "settings");
     const settingsSnapshot = await getDocs(settingsCol);
-    if (settingsSnapshot.empty) {
-      console.log("[Firebase Seeder] Settings collection is empty. Seeding DEFAULT_SETTINGS...");
-      const docRef = doc(db, "settings", "general");
-      await setDoc(docRef, DEFAULT_SETTINGS);
+    const inovaDoc = settingsSnapshot.docs.find(d => d.id === "general_inova");
+    if (!inovaDoc) {
+      console.log("[Firebase Seeder] general_inova document not found. Seeding...");
+      const docRef = doc(db, "settings", "general_inova");
+      const generalDoc = settingsSnapshot.docs.find(d => d.id === "general");
+      let seedData = DEFAULT_SETTINGS;
+      if (generalDoc) {
+        const existing = generalDoc.data() as AppSettings;
+        if (existing.storeName && !existing.storeName.toLowerCase().includes("bambuzau")) {
+          seedData = { ...DEFAULT_SETTINGS, ...existing };
+        }
+      }
+      await setDoc(docRef, seedData);
     }
 
     console.log("[Firebase Seeder] Synchronizing DEFAULT_CATEGORIES to Firestore...");
